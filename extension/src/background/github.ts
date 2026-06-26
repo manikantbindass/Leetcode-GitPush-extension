@@ -78,6 +78,7 @@ export async function fetchAndCacheRepoTree(
     const dirs = tree.filter(t => t.type === 'tree').map(t => t.path);
     await storage.setMany({
       repoTree: dirs,
+      repoTreeItems: tree,          // store full items for findTopicDirectory
       repoTreeFetchedAt: Date.now(),
     });
     return dirs;

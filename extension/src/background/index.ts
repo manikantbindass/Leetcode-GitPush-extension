@@ -212,26 +212,19 @@ async function processItem(item: QueueItem): Promise<void> {
     }
 
     // 2. Get repo tree for folder placement
-    let treeDirs: string[] = [];
+    let treeItems: Array<{ path: string; type: 'tree' | 'blob'; sha: string; url: string }> = [];
     try {
       const CACHE_TTL = 30 * 60 * 1000; // 30 min
       const cachedAt = await storage.get('repoTreeFetchedAt');
       if (!cachedAt || Date.now() - cachedAt > CACHE_TTL) {
-        treeDirs = await fetchAndCacheRepoTree(repo, branch);
-      } else {
-        treeDirs = (await storage.get('repoTree')) ?? [];
+        await fetchAndCacheRepoTree(repo, branch);
       }
+      // Use full tree items (type=tree entries) for folder matching
+      const storedItems = await storage.get('repoTreeItems');
+      treeItems = storedItems ?? [];
     } catch {
-      treeDirs = [];
+      treeItems = [];
     }
-
-    // Reconstruct TreeItem array for findTopicDirectory
-    const treeItems = treeDirs.map(p => ({
-      path: p,
-      type: 'tree' as const,
-      sha: '',
-      url: '',
-    }));
 
     // Find best matching folder from repo structure
     const topicDir = findTopicDirectory(

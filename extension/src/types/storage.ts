@@ -1,6 +1,6 @@
 import type { AIProviderConfig, AIProviderType } from './ai';
-import type { GitHubUser, Repository } from './github';
-import type { Language, QueueItem, Submission } from './submission';
+import type { GitHubUser, Repository, TreeItem } from './github';
+import type { Language, OutputLanguage, QueueItem, Submission } from './submission';
 
 export interface SolvedStats {
   easy: number;
@@ -20,6 +20,7 @@ export interface ExtensionStorage {
   selectedRepo?: Repository;
   selectedBranch?: string;
   repoTree?: string[];
+  repoTreeItems?: TreeItem[];    // full tree for folder matching
   repoTreeFetchedAt?: number;
 
   // AI config
@@ -27,7 +28,7 @@ export interface ExtensionStorage {
   providers?: AIProviderConfig[];
 
   // Settings
-  targetLanguages?: Language[];
+  targetLanguages?: OutputLanguage[];
   fileNamingStyle?: FileNamingStyle;
   commitTemplate?: string;
   autoPush?: boolean;

@@ -22,6 +22,7 @@ export type Language =
 export type OutputLanguage =
   | 'java'
   | 'python'
+  | 'python3'
   | 'go'
   | 'cpp'
   | 'c'
