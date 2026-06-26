@@ -2,25 +2,57 @@ import type { Difficulty, Example, Language, Submission } from '@/types/submissi
 import { generateId } from '@/lib/utils';
 
 // ─── Inject interceptor into page main world ─────────────────────────────
-const script = document.createElement('script');
-script.src = chrome.runtime.getURL('src/content/injected.js');
-script.onload = () => script.remove();
-(document.head || document.documentElement).appendChild(script);
+injectScript();
+
+function injectScript() {
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL('src/content/injected.js');
+  script.onload = () => script.remove();
+  script.onerror = () => {
+    console.error('[LeetCode AI Sync] Failed to inject interceptor script');
+  };
+  (document.head || document.documentElement).appendChild(script);
+}
 
 // ─── Listen for messages from the injected script ────────────────────────
 window.addEventListener('message', async event => {
   if (event.source !== window) return;
+
+  if (event.data?.type === 'LEETCODE_INJECTOR_READY') {
+    console.log('[LeetCode AI Sync] Interceptor ready ✓');
+    return;
+  }
+
   if (event.data?.type !== 'LEETCODE_SUBMISSION_ACCEPTED') return;
 
   const raw = event.data.payload;
   if (!raw?.submissionId) return;
 
-  showToast('🔍 LeetCode AI Sync: fetching metadata…', 'info');
+  // Deduplicate — same submission can fire multiple times from different interceptors
+  if (recentlyProcessed.has(raw.submissionId)) return;
+  recentlyProcessed.add(raw.submissionId);
+  setTimeout(() => recentlyProcessed.delete(raw.submissionId), 30000);
 
+  showToast('🔍 LeetCode AI Sync: processing submission…', 'info');
+  await processSubmission(raw);
+});
+
+const recentlyProcessed = new Set<string>();
+
+// ─── Process a detected submission ───────────────────────────────────────
+async function processSubmission(raw: Record<string, any>) {
   try {
-    // Fetch rich metadata via GraphQL
     const slug = raw.titleSlug || extractSlugFromUrl();
+    if (!slug) throw new Error('Could not determine problem slug from URL');
+
+    // Fetch rich metadata via GraphQL
     const meta = await fetchGraphQLMetadata(slug);
+
+    // Fallback code: try fetching submission detail if code not captured
+    let code = raw.code ?? '';
+    if (!code && raw.submissionId) {
+      code = await fetchSubmissionCode(raw.submissionId);
+    }
 
     const submission: Submission = {
       id: generateId(),
@@ -33,13 +65,17 @@ window.addEventListener('message', async event => {
       examples: meta.examples ?? [],
       description: meta.description ?? '',
       language: (raw.language || 'javascript') as Language,
-      code: raw.code ?? '',
+      code,
       runtime: raw.runtime ?? '',
       memory: raw.memory ?? '',
       url: `https://leetcode.com/problems/${slug}/`,
       timestamp: Date.now(),
       isSQL: isSQL(raw.language ?? ''),
     };
+
+    if (!submission.code?.trim()) {
+      console.warn('[LeetCode AI Sync] Code is empty — will retry from submission detail');
+    }
 
     chrome.runtime.sendMessage({
       type: 'SUBMISSION_DETECTED',
@@ -48,10 +84,40 @@ window.addEventListener('message', async event => {
 
     showToast('✅ LeetCode AI Sync: syncing to GitHub…', 'success');
   } catch (err) {
-    console.error('[LeetCode AI Sync] Error:', err);
-    showToast('❌ LeetCode AI Sync: failed to process submission', 'error');
+    console.error('[LeetCode AI Sync] Error processing submission:', err);
+    showToast(`❌ LeetCode AI Sync: ${String(err)}`, 'error');
   }
-});
+}
+
+// ─── Fetch submission code from LeetCode API (fallback) ──────────────────
+async function fetchSubmissionCode(submissionId: string): Promise<string> {
+  const query = `
+    query submissionDetails($submissionId: Int!) {
+      submissionDetails(submissionId: $submissionId) {
+        code
+        lang { name verboseName }
+        statusDisplay
+        runtime
+        memory
+      }
+    }
+  `;
+  try {
+    const res = await fetch('https://leetcode.com/graphql/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        query,
+        variables: { submissionId: parseInt(submissionId, 10) },
+      }),
+    });
+    const data = await res.json();
+    return data?.data?.submissionDetails?.code ?? '';
+  } catch {
+    return '';
+  }
+}
 
 // ─── GraphQL metadata fetch ───────────────────────────────────────────────
 async function fetchGraphQLMetadata(titleSlug: string): Promise<Partial<Submission>> {
@@ -67,7 +133,6 @@ async function fetchGraphQLMetadata(titleSlug: string): Promise<Partial<Submissi
         topicTags { name slug }
         content
         exampleTestcases
-        constraints: content
       }
     }
   `;
@@ -128,7 +193,6 @@ function parseConstraints(html: string): string[] {
 function parseExamples(testcases: string, html: string): Example[] {
   const examples: Example[] = [];
 
-  // Try to extract from HTML
   const exampleMatches = html.matchAll(
     /<strong[^>]*>Example\s*\d+:?<\/strong>([\s\S]*?)(?=<strong[^>]*>Example|<strong[^>]*>Constraints|$)/gi
   );
@@ -148,7 +212,6 @@ function parseExamples(testcases: string, html: string): Example[] {
   }
 
   if (examples.length === 0 && testcases) {
-    // Fallback: use raw test cases
     testcases.split('\n').forEach((line, i) => {
       if (i % 2 === 0) {
         examples.push({ input: line, output: testcases.split('\n')[i + 1] ?? '' });
@@ -170,13 +233,92 @@ function isSQL(lang: string): boolean {
   );
 }
 
+// ─── Inject "Sync Now" button on LeetCode (fallback) ─────────────────────
+// Adds a small button in the top-right so users can manually trigger sync
+// if auto-detection missed the submission.
+function injectSyncButton() {
+  if (document.getElementById('lc-ai-sync-btn')) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'lc-ai-sync-btn';
+  btn.textContent = '⚡ Sync';
+  btn.title = 'LeetCode AI Sync — manually trigger push to GitHub';
+  btn.style.cssText = `
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    background: #3a52eb;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(58,82,235,0.4);
+    transition: all 0.15s ease;
+    font-family: Inter, system-ui, sans-serif;
+  `;
+  btn.onmouseover = () => { btn.style.background = '#2f3fd7'; btn.style.transform = 'translateY(-1px)'; };
+  btn.onmouseout  = () => { btn.style.background = '#3a52eb'; btn.style.transform = 'translateY(0)'; };
+
+  btn.onclick = async () => {
+    const slug = extractSlugFromUrl();
+    if (!slug) {
+      showToast('❌ Navigate to a LeetCode problem first', 'error');
+      return;
+    }
+    btn.textContent = '⏳ Syncing…';
+    btn.disabled = true;
+
+    // Synthesize a submission event with code from the editor
+    const editorCode = getEditorCode();
+    const lang = getEditorLang();
+
+    await processSubmission({
+      submissionId: `manual-${Date.now()}`,
+      language: lang,
+      code: editorCode,
+      titleSlug: slug,
+      runtime: 'N/A',
+      memory: 'N/A',
+    });
+
+    btn.textContent = '⚡ Sync';
+    btn.disabled = false;
+  };
+
+  document.body.appendChild(btn);
+}
+
+function getEditorCode(): string {
+  // Monaco editor API
+  try {
+    const monaco = (window as any).monaco;
+    if (monaco) {
+      const editors = monaco.editor.getEditors?.() ?? [];
+      if (editors.length > 0) return editors[0].getValue();
+    }
+  } catch {}
+  // Fallback: CodeMirror
+  try {
+    const cm = (document.querySelector('.CodeMirror') as any)?.CodeMirror;
+    if (cm) return cm.getValue();
+  } catch {}
+  return '';
+}
+
+function getEditorLang(): string {
+  // Try to read language from LeetCode's UI
+  const langBtns = document.querySelectorAll('[data-cy="lang-select"] button, [class*="langBtn"]');
+  if (langBtns.length > 0) return (langBtns[0] as HTMLElement).textContent?.toLowerCase().trim() ?? 'java';
+  return 'java';
+}
+
 // ─── Toast notification (Shadow DOM) ────────────────────────────────────
 function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
-  const colors = {
-    success: '#22c55e',
-    error: '#ef4444',
-    info: '#4f6ef7',
-  };
+  const colors = { success: '#22c55e', error: '#ef4444', info: '#4f6ef7' };
 
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;top:20px;right:20px;z-index:2147483647;';
@@ -216,4 +358,11 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
     host.style.opacity = '0';
     setTimeout(() => host.remove(), 300);
   }, 3000);
+}
+
+// Inject button once DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', injectSyncButton);
+} else {
+  injectSyncButton();
 }
