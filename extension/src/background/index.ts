@@ -41,10 +41,13 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   }
 });
 
-// ─── Alarm: process retry queue every 2 minutes ─────────────────────────────
-chrome.alarms.create('processQueue', { periodInMinutes: 2 });
+// ─── Alarms ─────────────────────────────────────────────────────────────────
+chrome.alarms.create('processQueue',   { periodInMinutes: 1 });
+chrome.alarms.create('pollLeetCode',   { periodInMinutes: 2 });
+
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name === 'processQueue') processQueue();
+  if (alarm.name === 'pollLeetCode')  pollLeetCodeForNewSubmissions();
 });
 
 // ─── Message router ──────────────────────────────────────────────────────────
@@ -185,9 +188,17 @@ async function processItem(item: QueueItem): Promise<void> {
 
     const { submission } = item;
 
-    // Validate submission has required data
-    if (!submission.code?.trim()) {
-      throw new Error('Submission code is empty — the page interceptor may not have captured it. Try submitting again.');
+    // If code is missing, try to fetch it from LeetCode submissionDetails API
+    if (!submission.code?.trim() && submission.titleSlug) {
+      console.log('[LeetCode AI Sync] Code empty — fetching from LeetCode API...');
+      const fetched = await fetchCodeFromLeetCode(submission);
+      if (fetched) {
+        submission.code = fetched;
+      } else {
+        throw new Error(
+          'Could not retrieve submission code. Open LeetCode in a tab and ensure you are logged in, then retry.'
+        );
+      }
     }
 
     // Determine languages to generate
@@ -382,3 +393,156 @@ function safeSendMessage(msg: object): void {
     chrome.runtime.sendMessage(msg);
   } catch { /* popup may be closed — ignore */ }
 }
+
+// ─── Fetch submission code from LeetCode via scripting ────────────────────────
+// Used when the interceptor captured the submission but missed the code body.
+async function fetchCodeFromLeetCode(submission: Submission): Promise<string> {
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://leetcode.com/*' });
+    if (!tabs.length || !tabs[0].id) return '';
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      func: async (titleSlug: string) => {
+        // Try submissionDetails by recent AC list
+        const meQ = `query { userStatus { username } }`;
+        const meR = await fetch('https://leetcode.com/graphql/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ query: meQ }),
+        });
+        const me = await meR.json();
+        const username = me?.data?.userStatus?.username;
+        if (!username) return '';
+
+        const acQ = `query($u:String!,$l:Int!){ recentAcSubmissionList(username:$u,limit:$l){ id titleSlug } }`;
+        const acR = await fetch('https://leetcode.com/graphql/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ query: acQ, variables: { u: username, l: 5 } }),
+        });
+        const acData = await acR.json();
+        const match = (acData?.data?.recentAcSubmissionList ?? []).find(
+          (s: any) => s.titleSlug === titleSlug
+        );
+        if (!match) return '';
+
+        const dQ = `query($id:Int!){ submissionDetails(submissionId:$id){ code } }`;
+        const dR = await fetch('https://leetcode.com/graphql/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ query: dQ, variables: { id: parseInt(match.id, 10) } }),
+        });
+        const dData = await dR.json();
+        return dData?.data?.submissionDetails?.code ?? '';
+      },
+      args: [submission.titleSlug],
+    });
+    return (results?.[0]?.result as string) ?? '';
+  } catch (err) {
+    console.warn('[LeetCode AI Sync] fetchCodeFromLeetCode failed:', err);
+    return '';
+  }
+}
+
+// ─── Polling: check LeetCode for new AC submissions every 2 min ───────────────
+// This is the backup auto-detection path — runs even if the content script
+// interceptor missed the submission event.
+const _syncedSubmissionIds = new Set<string>();
+
+async function pollLeetCodeForNewSubmissions(): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({ url: 'https://leetcode.com/*' });
+    if (!tabs.length || !tabs[0].id) return; // LeetCode not open
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      func: async () => {
+        try {
+          const meQ = `query { userStatus { username } }`;
+          const meR = await fetch('https://leetcode.com/graphql/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ query: meQ }),
+          });
+          const me = await meR.json();
+          const username = me?.data?.userStatus?.username;
+          if (!username) return null;
+
+          const acQ = `query($u:String!,$l:Int!){ recentAcSubmissionList(username:$u,limit:$l){ id titleSlug title timestamp lang } }`;
+          const acR = await fetch('https://leetcode.com/graphql/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ query: acQ, variables: { u: username, l: 3 } }),
+          });
+          const acData = await acR.json();
+          return acData?.data?.recentAcSubmissionList ?? null;
+        } catch { return null; }
+      },
+      args: [],
+    });
+
+    const submissions: Array<{ id: string; titleSlug: string; title: string; timestamp: string; lang: string }> =
+      results?.[0]?.result ?? [];
+    if (!submissions?.length) return;
+
+    const alreadySyncedIds: string[] = (await storage.get('syncedSubmissionIds') as string[]) ?? [];
+    const syncedSet = new Set([...alreadySyncedIds, ..._syncedSubmissionIds]);
+
+    // Process only submissions from the last 10 minutes that haven't been synced
+    const tenMinAgo = Date.now() - 10 * 60 * 1000;
+
+    for (const sub of submissions) {
+      const ts = parseInt(sub.timestamp, 10) * 1000; // LeetCode uses seconds
+      if (syncedSet.has(sub.id)) continue;
+      if (ts < tenMinAgo) continue; // skip old ones
+
+      _syncedSubmissionIds.add(sub.id);
+      console.log('[LeetCode AI Sync] Polling found new AC submission:', sub.titleSlug);
+
+      // Enqueue as a submission with empty code — processItem will fetch it
+      const submission: Submission = {
+        id: generateId(),
+        problemNumber: 0,
+        title: sub.title,
+        titleSlug: sub.titleSlug,
+        difficulty: 'Medium',
+        topics: [],
+        constraints: [],
+        examples: [],
+        description: '',
+        language: sub.lang as any,
+        code: '', // will be fetched by processItem
+        runtime: '',
+        memory: '',
+        url: `https://leetcode.com/problems/${sub.titleSlug}/`,
+        timestamp: ts,
+        isSQL: ['mysql', 'mssql', 'oraclesql', 'postgresql', 'pandas'].includes(
+          sub.lang.toLowerCase()
+        ),
+      };
+
+      const existing = await getAllItems();
+      const alreadyQueued = existing.some(
+        q => q.submission?.titleSlug === sub.titleSlug &&
+             Math.abs((q.submission?.timestamp ?? 0) - ts) < 60000
+      );
+      if (alreadyQueued) continue;
+
+      await enqueueSubmission(submission);
+      // Persist synced ID so we don't re-queue after restart
+      const freshIds: string[] = (await storage.get('syncedSubmissionIds') as string[]) ?? [];
+      await storage.setMany({ syncedSubmissionIds: [...new Set([...freshIds, sub.id])] });
+    }
+
+    await processQueue();
+  } catch (err) {
+    console.warn('[LeetCode AI Sync] pollLeetCodeForNewSubmissions failed:', err);
+  }
+}
+

@@ -49,4 +49,5 @@ export interface ExtensionStorage {
   lastSynced?: number;
   streak?: number;
   lastSolvedDate?: string;
+  syncedSubmissionIds?: string[];  // LeetCode submission IDs already pushed to GitHub
 }
