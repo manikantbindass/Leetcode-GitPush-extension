@@ -1,9 +1,11 @@
-import { GitBranch, Zap, Clock, Flame, ExternalLink, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { GitBranch, Zap, Clock, Flame, RefreshCw, Download } from 'lucide-react';
 import { usePopupStore } from '../store';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/StatusBadge';
-import { timeAgo, formatDate, getDifficultyBgClass } from '@/lib/utils';
+import { timeAgo } from '@/lib/utils';
+import { sendMessage } from '@/lib/messaging';
 
 export function Dashboard() {
   const {
@@ -11,9 +13,55 @@ export function Dashboard() {
     activeProvider, providers, streak, lastSynced, queue, retryQueue,
   } = usePopupStore();
 
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+
   const pendingCount = queue.filter(i => i.status === 'pending' || i.status === 'processing').length;
   const failedCount = queue.filter(i => i.status === 'failed').length;
   const activeProviderConfig = providers.find(p => p.type === activeProvider);
+
+  const handleSyncLast = async () => {
+    setSyncing(true);
+    setSyncMsg('Fetching your latest submission from LeetCode…');
+    try {
+      const [tab] = await chrome.tabs.query({ url: 'https://leetcode.com/*' });
+      if (!tab?.id) {
+        setSyncMsg('❌ Open LeetCode in a tab first');
+        setSyncing(false);
+        return;
+      }
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: async () => {
+          const meQ = `query { userStatus { username } }`;
+          const meR = await fetch('https://leetcode.com/graphql/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ query: meQ }) });
+          const me = await meR.json();
+          const username = me?.data?.userStatus?.username;
+          if (!username) return null;
+          const acQ = `query($username:String!,$limit:Int!){ recentAcSubmissionList(username:$username,limit:$limit){ id titleSlug title timestamp lang } }`;
+          const acR = await fetch('https://leetcode.com/graphql/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ query: acQ, variables: { username, limit: 1 } }) });
+          const acData = await acR.json();
+          const sub = acData?.data?.recentAcSubmissionList?.[0];
+          if (!sub) return null;
+          const dQ = `query($submissionId:Int!){ submissionDetails(submissionId:$submissionId){ code runtime memory lang{ name } question{ questionId title difficulty topicTags{ name } } } }`;
+          const dR = await fetch('https://leetcode.com/graphql/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ query: dQ, variables: { submissionId: parseInt(sub.id, 10) } }) });
+          const dData = await dR.json();
+          const d = dData?.data?.submissionDetails;
+          const q = d?.question;
+          return { submissionId: sub.id, code: d?.code ?? '', language: d?.lang?.name ?? sub.lang, titleSlug: sub.titleSlug, title: q?.title ?? sub.title, difficulty: q?.difficulty ?? 'Medium', topics: (q?.topicTags ?? []).map((t: any) => t.name), problemNumber: parseInt(q?.questionId ?? '0', 10), runtime: d?.runtime ?? '', memory: d?.memory ?? '' };
+        },
+      });
+      const p = results?.[0]?.result as any;
+      if (!p) { setSyncMsg('❌ Could not fetch submission. Log in to LeetCode first.'); setSyncing(false); return; }
+      if (!p.code) { setSyncMsg('❌ Code empty — LeetCode may restrict submission access.'); setSyncing(false); return; }
+      setSyncMsg(`✅ Found: ${p.title} — queueing…`);
+      await sendMessage({ type: 'SUBMISSION_DETECTED', payload: { id: `manual-${Date.now()}`, ...p, url: `https://leetcode.com/problems/${p.titleSlug}/`, timestamp: Date.now(), isSQL: false, constraints: [], examples: [], description: '' } });
+      setSyncMsg('✅ Queued! Check Queue tab for progress.');
+    } catch (err) { setSyncMsg(`❌ ${String(err)}`); }
+    setSyncing(false);
+  };
+
+
 
   return (
     <div className="p-3 space-y-3 animate-fade-in">
@@ -102,7 +150,27 @@ export function Dashboard() {
         )}
       </div>
 
+      {/* Manual Sync Button */}
+      <div className="space-y-1.5">
+        <Button
+          variant="primary"
+          size="sm"
+          fullWidth
+          loading={syncing}
+          leftIcon={<Download size={13} />}
+          onClick={handleSyncLast}
+        >
+          {syncing ? 'Fetching…' : 'Sync Last Accepted Submission'}
+        </Button>
+        {syncMsg && (
+          <p className={`text-[10px] text-center px-1 ${syncMsg.startsWith('❌') ? 'text-red-400' : 'text-green-400'}`}>
+            {syncMsg}
+          </p>
+        )}
+      </div>
+
       {/* Recent Submissions */}
+
       <div>
         <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-2">
           Recent
