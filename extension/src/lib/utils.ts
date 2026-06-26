@@ -157,9 +157,9 @@ export function padProblemNumber(num: number): string {
 /** Get comment prefix for a given language. */
 export function getCommentStyle(language: string): { single: string; blockStart?: string; blockEnd?: string } {
   const slashStyle = { single: '//', blockStart: '/*', blockEnd: '*/' };
-  const hashStyle = { single: '#' };
-  const dashStyle = { single: '--' };
-  const map: Record<string, typeof slashStyle> = {
+  const hashStyle  = { single: '#',  blockStart: '#',  blockEnd: '#'  };
+  const dashStyle  = { single: '--', blockStart: '--', blockEnd: '--' };
+  const map: Record<string, { single: string; blockStart: string; blockEnd: string }> = {
     java: slashStyle,
     javascript: slashStyle,
     typescript: slashStyle,
