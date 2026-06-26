@@ -1,185 +1,346 @@
-# 🧠 LeetCode AI Sync
+# ⚡ LeetCode AI Sync
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-username/leetcode-ai-sync/releases)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-yellow.svg?logo=googlechrome)](https://chrome.google.com/webstore)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
-[![CI](https://github.com/your-username/leetcode-ai-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/leetcode-ai-sync/actions)
+<div align="center">
 
-> **Auto-detect LeetCode accepted submissions → Generate AI solutions in 14+ languages → Push to GitHub automatically.**
+[![Version](https://img.shields.io/badge/version-1.0.0-00f5ff.svg?style=for-the-badge)](https://github.com/manikantbindass/Leetcode-GitPush-extension/releases)
+[![License](https://img.shields.io/badge/license-MIT-bf00ff.svg?style=for-the-badge)](LICENSE)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-ff006e.svg?style=for-the-badge&logo=googlechrome)](https://chrome.google.com)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-00f5ff.svg?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18-bf00ff.svg?style=for-the-badge&logo=react)](https://reactjs.org/)
+[![CI](https://github.com/manikantbindass/Leetcode-GitPush-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/manikantbindass/Leetcode-GitPush-extension/actions)
+
+**Solve on LeetCode → AI generates solutions in every language → Auto-pushed to GitHub. Zero clicks.**
+
+*Cyberpunk-themed Chrome extension with glassmorphism UI, neon aesthetics & liquidity pool animations.*
+
+</div>
+
+---
+
+## 🎬 How It Works
+
+```
+You get Accepted on LeetCode
+         │
+         ├─► Layer 1: Network intercept (instant — catches code at submit)
+         │
+         ├─► Layer 2: DOM observer (watches for "Accepted" verdict)
+         │
+         └─► Layer 3: Background polling every 2 min (guaranteed fallback)
+                      │
+                      └─► DeepSeek reads your repo tree → picks correct folder
+                                    │
+                                    └─► Commits all languages to GitHub ✓
+```
 
 ---
 
 ## ✨ Features
 
-- 🔍 **Auto-Detection** — Intercepts LeetCode submission responses in real-time via XHR/fetch hooks
-- 🤖 **Multi-Provider AI** — Supports DeepSeek, OpenAI, Anthropic (Claude), and Google Gemini
-- 🌐 **14+ Languages** — Generate solutions in Python, JavaScript, TypeScript, Java, C++, C, Go, Rust, Ruby, Swift, Kotlin, Scala, PHP, and Dart
-- 📁 **Organized Repository** — Pushes solutions with a structured folder layout (`language/difficulty/problem-slug/`)
-- 📝 **Auto README** — Automatically maintains a `README.md` in your repo with a table of all solved problems
-- 🔐 **GitHub OAuth** — Secure OAuth 2.0 login, no manual token management
-- ⚙️ **Full Options Page** — Configure AI providers, target repo, language preferences, and more
-- 🔔 **Desktop Notifications** — Get notified on successful push or errors
-- 💾 **Local History** — Browse your submission history directly in the popup
-- 🌙 **Dark Mode** — Beautiful dark-themed UI built with Tailwind CSS
-- ⚡ **Manifest V3** — Built on the latest Chrome Extension standard for security and performance
-- 🔁 **Retry Queue** — Failed pushes are automatically retried with exponential backoff
+### 🔍 Auto-Detection (3 Layers)
+- **Layer 1** — Intercepts the LeetCode GraphQL `submitSolution` mutation at network level, captures `typedCode` and `lang` directly
+- **Layer 2** — MutationObserver watches the DOM for "Accepted" verdict appearing on screen
+- **Layer 3** — Background service worker polls `recentAcSubmissionList` every 2 minutes as guaranteed fallback
+
+### 🤖 AI-Powered Solutions
+- Generates optimized solutions in **all languages you select** using DeepSeek/OpenAI/Claude/Gemini
+- Includes **time & space complexity** analysis
+- Adds **explanation comments** inside the code
+
+### 📂 Smart Folder Placement
+- **AI reads your actual repo tree** — sends folder names + problem topics to DeepSeek
+- **Custom instructions box** — tell the AI exactly where each problem type goes:
+  ```
+  MySQL/SQL problems → 'MySQL' folder
+  Array problems → 'Arrays' folder
+  Tree problems → 'Trees' folder
+  ```
+- Falls back to intelligent keyword matching if AI unavailable
+
+### 🌐 16 Output Languages
+Java · Python · Go · C++ · C · JavaScript · TypeScript · Rust · Kotlin · Swift · C# · PHP · Ruby · Dart · SQL · Pandas
+
+### ⚡ Manual Sync Button
+- "SYNC LAST SUBMISSION" button in the popup — fetches your most recent accepted problem via LeetCode GraphQL API directly, no page reload needed
+
+### 🎨 Cyberpunk UI
+- **Glassmorphism** panels with `backdrop-blur` and frosted borders
+- **Liquidity pool orbs** — animated gradient blobs behind each stat card
+- **Neon glow** — cyan/pink/purple/green text with `text-shadow`
+- **Cyber corner accents** (L-shaped neon brackets)
+- **CRT scanline** texture on body
+- **Orbitron** display font for headings
+
+### 🔁 Retry Queue
+- Failed pushes automatically retried every minute
+- View all queue items with status: `PENDING → PROCESSING → PUSHED ✓ / FAILED ✗`
+- Neon-colored per-status filter chips
 
 ---
 
-## 📸 Screenshots
+## 🚀 Chrome Installation Guide
 
-> 📷 Screenshot coming soon — popup UI showing submission detection and GitHub push status.
+> **No web store required** — load it directly as an unpacked extension in under 5 minutes.
 
-> 📷 Screenshot coming soon — options page with AI provider configuration.
-
-> 📷 Screenshot coming soon — GitHub repository with organized solution folders and auto-generated README.
-
----
-
-## 🚀 Installation
-
-### Prerequisites
-
-- **Node.js** 18+ and **npm** 9+
-- **Google Chrome** 120+
-- **Git**
-- A **GitHub account**
-
-### Step 1 — Clone the Repository
+### Step 1 — Clone & Build
 
 ```bash
-git clone https://github.com/your-username/leetcode-ai-sync.git
-cd leetcode-ai-sync
-```
-
-### Step 2 — Register a GitHub OAuth App
-
-1. Go to [GitHub Developer Settings → OAuth Apps](https://github.com/settings/developers)
-2. Click **"New OAuth App"**
-3. Fill in the form:
-   - **Application name**: `LeetCode AI Sync`
-   - **Homepage URL**: `http://localhost:3001`
-   - **Authorization callback URL**: `http://localhost:3001/auth/github/callback`
-4. Click **Register application**
-5. Copy the **Client ID** and generate a **Client Secret**
-
-### Step 3 — Setup the OAuth Server
-
-```bash
-cd server
-cp .env.example .env
-# Edit .env with your GitHub OAuth credentials
-npm install
-npm run dev
-```
-
-### Step 4 — Build the Extension
-
-```bash
-cd ../extension
+git clone https://github.com/manikantbindass/Leetcode-GitPush-extension.git
+cd Leetcode-GitPush-extension/extension
 npm install
 npm run build
 ```
 
-### Step 5 — Load Unpacked in Chrome
-
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable **Developer mode** (toggle in top-right)
-3. Click **"Load unpacked"**
-4. Select the `extension/dist` folder
-5. The LeetCode AI Sync icon will appear in your toolbar
+This creates a `extension/dist/` folder — that's what Chrome will load.
 
 ---
 
-## 🔧 Environment Variables
+### Step 2 — Open Chrome Extensions Page
 
-### Server (`server/.env`)
+Open a new Chrome tab and go to:
 
-| Variable | Required | Description | Example |
-|---|---|---|---|
-| `GITHUB_CLIENT_ID` | ✅ | GitHub OAuth App Client ID | `Ov23liABC123...` |
-| `GITHUB_CLIENT_SECRET` | ✅ | GitHub OAuth App Client Secret | `abc123def456...` |
-| `ALLOWED_ORIGINS` | ✅ | Comma-separated list of allowed CORS origins | `chrome-extension://abcdefg` |
-| `PORT` | ❌ | Server port (default: 3001) | `3001` |
+```
+chrome://extensions/
+```
+
+---
+
+### Step 3 — Enable Developer Mode
+
+In the top-right corner of the extensions page, toggle **"Developer mode"** to **ON**.
+
+```
+┌─────────────────────────────────────────────┐
+│  Extensions                  Developer mode ●│
+└─────────────────────────────────────────────┘
+```
+
+---
+
+### Step 4 — Load Unpacked Extension
+
+1. Click the **"Load unpacked"** button (top-left, appears after enabling Developer mode)
+2. In the folder picker dialog, navigate to:
+   ```
+   Leetcode-GitPush-extension/
+   └── extension/
+       └── dist/        ← SELECT THIS FOLDER
+   ```
+3. Click **"Select Folder"**
+
+---
+
+### Step 5 — Pin the Extension
+
+1. Click the **puzzle piece** 🧩 icon in Chrome's toolbar (top-right)
+2. Find **"LeetCode AI Sync"**
+3. Click the **pin** 📌 icon next to it
+
+The ⚡ neon icon will now appear permanently in your toolbar.
+
+---
+
+### Step 6 — Connect GitHub
+
+1. Click the **⚡ extension icon** to open the popup
+2. You'll see the **Connect GitHub** screen
+3. Click **"Step 1 — Create Token"** → opens GitHub with scopes pre-filled
+4. On GitHub:
+   - Set **Note**: `LeetCode AI Sync`
+   - Set **Expiration**: `No expiration`
+   - Ensure **`repo`** and **`user`** scopes are checked ✓
+   - Click **"Generate token"**
+   - **Copy the token** (shown only once!)
+5. Paste the token back in the extension → Click **"CONNECT GITHUB"**
+
+---
+
+### Step 7 — Configure Settings
+
+Open the extension → **Settings tab**:
+
+| Setting | Recommended value |
+|---|---|
+| Repository | Your DSA repo (e.g. `manikantbindass/DSA-Preparation-FAANG`) |
+| Branch | `main` |
+| AI Provider | DeepSeek Coder (free, fast) |
+| Output Languages | Java, Python, Go (or all you want) |
+| File naming | `0001-two-sum/TwoSum.java` |
+| Auto-push | ✅ ON |
+
+---
+
+### Step 8 — Add AI Instructions
+
+In **Settings → AI Folder Instructions**, paste rules for your repo:
+
+```
+- MySQL/SQL/Database problems → put in 'MySQL' folder
+- Array/String/Hashing problems → put in 'Arrays' folder  
+- Tree/Binary Tree problems → put in 'Trees' folder
+- Graph/BFS/DFS problems → put in 'Graphs' folder
+- Dynamic Programming problems → put in 'DP' folder
+- Sliding Window problems → put in 'SlidingWindow' folder
+- Stack/Monotonic Stack → put in 'Stack' folder
+- Linked List → put in 'LinkedList' folder
+```
+
+DeepSeek will read your actual repo folder names and match exactly.
+
+---
+
+### Step 9 — Test It!
+
+1. Go to [leetcode.com](https://leetcode.com) and open any problem
+2. Solve it and click **Submit**
+3. When you get **Accepted** → check the extension popup → **Queue tab**
+4. You should see it `PROCESSING` then `PUSHED ✓`
+5. Check your GitHub repo — the solution files will be there!
+
+> **If auto-detect misses it:** Click **"SYNC LAST SUBMISSION"** on the Dashboard tab. It fetches your latest accepted problem directly via API.
+
+---
+
+### Updating the Extension
+
+After pulling new code:
+
+```bash
+cd extension
+npm run build
+```
+
+Then go to `chrome://extensions/` → click the **🔄 Refresh** button on the LeetCode AI Sync card.
 
 ---
 
 ## 🤖 Supported AI Providers
 
-| Provider | Model(s) | API Key Required | Free Tier |
+| Provider | Recommended Model | API Key | Cost |
 |---|---|---|---|
-| **DeepSeek** | `deepseek-chat`, `deepseek-coder` | ✅ | ✅ Generous free tier |
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo` | ✅ | ❌ Pay-per-use |
-| **Anthropic** | `claude-sonnet-4-5`, `claude-3-haiku` | ✅ | ❌ Pay-per-use |
-| **Google Gemini** | `gemini-1.5-flash`, `gemini-1.5-pro` | ✅ | ✅ Free tier available |
+| **DeepSeek** ⭐ | `deepseek-coder` | [platform.deepseek.com](https://platform.deepseek.com) | Very cheap / free tier |
+| **OpenAI** | `gpt-4o-mini` | [platform.openai.com](https://platform.openai.com) | Pay-per-use |
+| **Anthropic** | `claude-3-haiku` | [console.anthropic.com](https://console.anthropic.com) | Pay-per-use |
+| **Google Gemini** | `gemini-1.5-flash` | [aistudio.google.com](https://aistudio.google.com) | Free tier |
+| **Ollama** | `codellama` | localhost | Free (local) |
 
 ---
 
 ## 🌐 Supported Output Languages
 
-| Language | File Extension | Notes |
-|---|---|---|
-| Python | `.py` | Default language |
-| JavaScript | `.js` | ES2022+ |
-| TypeScript | `.ts` | Strict mode |
-| Java | `.java` | Java 17+ |
-| C++ | `.cpp` | C++17 |
-| C | `.c` | C11 |
-| Go | `.go` | Go 1.21+ |
-| Rust | `.rs` | Rust 2021 edition |
-| Ruby | `.rb` | Ruby 3+ |
-| Swift | `.swift` | Swift 5.9+ |
-| Kotlin | `.kt` | Kotlin 1.9+ |
-| Scala | `.scala` | Scala 3 |
-| PHP | `.php` | PHP 8.2+ |
-| Dart | `.dart` | Dart 3+ |
+| Language | Extension | Language | Extension |
+|---|---|---|---|
+| Java | `.java` | JavaScript | `.js` |
+| Python | `.py` | TypeScript | `.ts` |
+| Go | `.go` | Rust | `.rs` |
+| C++ | `.cpp` | Kotlin | `.kt` |
+| C | `.c` | Swift | `.swift` |
+| C# | `.cs` | PHP | `.php` |
+| Ruby | `.rb` | Dart | `.dart` |
+| SQL | `.sql` | Pandas | `.py` |
 
 ---
 
-## 🏗️ Architecture
+## 📁 Repository Structure Generated
 
 ```
-leetcode-ai-sync/
-├── extension/              # Chrome Extension (React + TypeScript + Vite)
-│   ├── src/
-│   │   ├── background/     # Service worker
-│   │   ├── content/        # Content script
-│   │   ├── popup/          # Popup UI
-│   │   ├── options/        # Options page
-│   │   ├── hooks/          # Shared React hooks
-│   │   ├── lib/            # Core business logic
-│   │   └── types/          # Shared TypeScript types
-│   └── public/
-│       ├── manifest.json   # Chrome Extension Manifest V3
-│       └── icons/          # Extension icons
-└── server/                 # Node.js OAuth relay server
-    └── src/
-        ├── index.ts        # Express app entry
-        └── routes/
-            └── auth.ts     # GitHub OAuth callback handler
+DSA-Preparation-FAANG/
+├── Arrays/
+│   ├── TwoSum.java
+│   ├── TwoSum.py
+│   └── TwoSum.go
+├── Trees/
+│   ├── BinaryTreeLevelOrder.java
+│   └── BinaryTreeLevelOrder.py
+├── MySQL/
+│   ├── ConsecutiveNumbers.sql
+│   └── ConsecutiveNumbers.py        ← pandas version
+├── DP/
+│   └── ...
+└── README.md                        ← auto-updated with all solutions
 ```
+
+---
+
+## 🏗️ Project Architecture
+
+```
+Leetcode-GitPush-extension/
+├── extension/                      # Chrome Extension (React + TypeScript + Vite)
+│   ├── src/
+│   │   ├── background/
+│   │   │   ├── index.ts            # Service worker — queue, GitHub push, polling
+│   │   │   ├── ai.ts               # AI provider calls
+│   │   │   ├── github.ts           # GitHub API (commit, tree, README)
+│   │   │   └── queue.ts            # Retry queue logic
+│   │   ├── content/
+│   │   │   ├── index.ts            # Content script — injects detector
+│   │   │   └── injected.ts         # 3-layer submission detector
+│   │   ├── lib/
+│   │   │   ├── github/
+│   │   │   │   ├── api.ts          # GitHub REST API client
+│   │   │   │   ├── tree.ts         # Repo tree + folder matching
+│   │   │   │   └── folder.ts       # AI-powered folder selection ← NEW
+│   │   │   └── ai/                 # Provider implementations
+│   │   ├── popup/
+│   │   │   ├── pages/
+│   │   │   │   ├── Dashboard.tsx   # Stats, sync button, recent list
+│   │   │   │   ├── Queue.tsx       # Queue view with filter chips
+│   │   │   │   └── Settings.tsx    # Full settings with AI instructions
+│   │   │   └── store.ts            # Zustand state management
+│   │   └── types/                  # TypeScript type definitions
+│   └── public/
+│       ├── manifest.json           # Manifest V3
+│       └── icons/                  # Branded neon icons
+└── server/                         # Optional Node.js OAuth server
+    └── src/
+        └── routes/auth.ts          # GitHub OAuth callback (only for OAuth flow)
+```
+
+---
+
+## 🔧 Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| **"GitHub API 403"** | Token missing `repo` scope. [Create new token](https://github.com/settings/tokens/new?scopes=repo,user) |
+| **"Solved 0 problems"** | Click "SYNC LAST SUBMISSION" on Dashboard. Open LeetCode first |
+| **Solutions in wrong folder** | Add rules in Settings → AI Folder Instructions |
+| **Auto-sync not working** | Check `chrome://extensions/` → make sure extension is enabled. Keep LeetCode tab open |
+| **Build fails** | Run `npm install` first, then `npm run build` |
+| **Extension not updating** | Go to `chrome://extensions/` → click 🔄 Refresh on the card |
+| **No AI solutions generated** | Check API key in Settings → Test connection |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the [Contributing Guide](docs/CONTRIBUTING.md) and [Setup Guide](docs/SETUP.md) before submitting a pull request.
-
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feat/amazing-feature`
-3. Commit your changes: `git commit -m 'feat: add amazing feature'`
-4. Push to the branch: `git push origin feat/amazing-feature`
+1. Fork the repo
+2. Create feature branch: `git checkout -b feat/your-feature`
+3. Commit: `git commit -m 'feat: add your feature'`
+4. Push: `git push origin feat/your-feature`
 5. Open a Pull Request
+
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for full guide.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE)
 
 ---
 
 ## ⚠️ Disclaimer
 
-This extension is not affiliated with LeetCode or GitHub. Use responsibly and in accordance with both platforms' Terms of Service.
+Not affiliated with LeetCode or GitHub. Use responsibly in accordance with both platforms' Terms of Service.
+
+---
+
+<div align="center">
+
+Built with ⚡ by [manikantbindass](https://github.com/manikantbindass)
+
+*Solve → Sync → Push. Automatically.*
+
+</div>
