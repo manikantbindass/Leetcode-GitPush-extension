@@ -24,7 +24,7 @@ export const DEFAULT_PROVIDERS: AIProviderConfig[] = [
   {
     type: 'deepseek',
     name: 'DeepSeek Coder',
-    model: 'deepseek-coder',
+    model: 'deepseek-chat',
     enabled: false,
   },
   {

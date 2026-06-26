@@ -69,15 +69,19 @@ export class GitHubAPI {
     repo: string,
     branch: string
   ): Promise<TreeItem[]> {
-    const data = await this.request<any>(
-      `/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`
-    );
-    return (data.tree ?? []).map((item: any) => ({
-      path: item.path,
-      type: item.type,
-      sha: item.sha,
-      url: item.url,
-    }));
+    try {
+      const data = await this.request<any>(
+        `/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`
+      );
+      return (data.tree ?? []).map((item: any) => ({
+        path: item.path,
+        type: item.type,
+        sha: item.sha,
+        url: item.url,
+      }));
+    } catch {
+      return [];
+    }
   }
 
   async getFileContent(
@@ -132,63 +136,109 @@ export class GitHubAPI {
     files: CommitFile[],
     message: string
   ): Promise<GitHubCommitResult> {
-    // 1. Get latest commit SHA for the branch
-    const refData = await this.request<any>(
-      `/repos/${owner}/${repo}/git/refs/heads/${branch}`
-    );
-    const latestCommitSha: string = refData.object.sha;
+    // 1. Get latest commit SHA — if branch doesn't exist, fall back to individual uploads
+    let latestCommitSha: string;
+    try {
+      const refData = await this.request<any>(
+        `/repos/${owner}/${repo}/git/refs/heads/${branch}`
+      );
+      latestCommitSha = refData.object.sha;
+    } catch (e: any) {
+      // Branch may not exist or repo is empty — use individual file creation
+      console.warn('[GitHub] batchCommit: could not get ref, falling back to individual uploads:', e.message);
+      return this.individualCommit(owner, repo, branch, files, message);
+    }
 
-    // 2. Get the tree SHA from that commit
-    const commitData = await this.request<any>(
-      `/repos/${owner}/${repo}/git/commits/${latestCommitSha}`
-    );
-    const baseTreeSha: string = commitData.tree.sha;
+    try {
+      // 2. Get base tree SHA from that commit
+      const commitData = await this.request<any>(
+        `/repos/${owner}/${repo}/git/commits/${latestCommitSha}`
+      );
+      const baseTreeSha: string = commitData.tree.sha;
 
-    // 3. Create blobs for each file
-    const treeItems = await Promise.all(
-      files.map(async file => {
-        const blob = await this.request<any>(
-          `/repos/${owner}/${repo}/git/blobs`,
-          {
-            method: 'POST',
-            body: JSON.stringify({ content: file.content, encoding: 'base64' }),
-          }
-        );
-        return {
-          path: file.path,
-          mode: '100644',
-          type: 'blob',
-          sha: blob.sha,
-        };
-      })
-    );
+      // 3. Create blobs for each file
+      const treeItems = await Promise.all(
+        files.map(async file => {
+          const blob = await this.request<any>(
+            `/repos/${owner}/${repo}/git/blobs`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ content: file.content, encoding: 'base64' }),
+            }
+          );
+          return {
+            path: file.path,
+            mode: '100644',
+            type: 'blob',
+            sha: blob.sha,
+          };
+        })
+      );
 
-    // 4. Create a new tree
-    const newTree = await this.request<any>(`/repos/${owner}/${repo}/git/trees`, {
-      method: 'POST',
-      body: JSON.stringify({ base_tree: baseTreeSha, tree: treeItems }),
-    });
+      // 4. Create a new tree
+      const newTree = await this.request<any>(`/repos/${owner}/${repo}/git/trees`, {
+        method: 'POST',
+        body: JSON.stringify({ base_tree: baseTreeSha, tree: treeItems }),
+      });
 
-    // 5. Create the commit
-    const newCommit = await this.request<any>(`/repos/${owner}/${repo}/git/commits`, {
-      method: 'POST',
-      body: JSON.stringify({
-        message,
-        tree: newTree.sha,
-        parents: [latestCommitSha],
-      }),
-    });
+      // 5. Create the commit
+      const newCommit = await this.request<any>(`/repos/${owner}/${repo}/git/commits`, {
+        method: 'POST',
+        body: JSON.stringify({
+          message,
+          tree: newTree.sha,
+          parents: [latestCommitSha],
+        }),
+      });
 
-    // 6. Move the branch ref to the new commit
-    await this.request(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ sha: newCommit.sha }),
-    });
+      // 6. Update branch ref
+      await this.request(`/repos/${owner}/${repo}/git/refs/heads/${branch}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ sha: newCommit.sha }),
+      });
 
-    return {
-      sha: newCommit.sha,
-      html_url: `https://github.com/${owner}/${repo}/commit/${newCommit.sha}`,
-      commit: { message: newCommit.message, url: newCommit.url },
-    };
+      return {
+        sha: newCommit.sha,
+        html_url: `https://github.com/${owner}/${repo}/commit/${newCommit.sha}`,
+        commit: { message: newCommit.message, url: newCommit.url },
+      };
+    } catch (e) {
+      // If batch fails for any reason, fall back to individual uploads
+      console.warn('[GitHub] batchCommit failed, falling back to individual uploads:', e);
+      return this.individualCommit(owner, repo, branch, files, message);
+    }
+  }
+
+  /** Fallback: upload files one by one via Contents API */
+  private async individualCommit(
+    owner: string,
+    repo: string,
+    branch: string,
+    files: CommitFile[],
+    message: string
+  ): Promise<GitHubCommitResult> {
+    let lastResult: GitHubCommitResult | null = null;
+
+    for (const file of files) {
+      // Decode base64 back to UTF-8 string for createOrUpdateFile
+      let content: string;
+      try {
+        content = decodeURIComponent(escape(atob(file.content)));
+      } catch {
+        content = file.content;
+      }
+
+      // Check if file exists (to get SHA for update)
+      const existing = await this.getFileContent(owner, repo, file.path, branch);
+      lastResult = await this.createOrUpdateFile(
+        owner, repo, file.path, content,
+        `${message} [${file.path.split('/').pop()}]`,
+        branch,
+        existing?.sha
+      );
+    }
+
+    if (!lastResult) throw new Error('No files to commit');
+    return lastResult;
   }
 }

@@ -8,7 +8,9 @@ export class DeepSeekProvider extends BaseAIProvider {
   constructor(config: ConstructorParameters<typeof BaseAIProvider>[0]) {
     super(config);
     this.baseUrl = config.baseUrl ?? 'https://api.deepseek.com/v1';
-    this.model = config.model ?? 'deepseek-coder';
+    // deepseek-chat is the current general-purpose model (handles code well)
+    // deepseek-coder is the older coding-specific model
+    this.model = config.model ?? 'deepseek-chat';
   }
 
   async chat(options: AIRequestOptions): Promise<AIResponse> {

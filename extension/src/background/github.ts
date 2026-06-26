@@ -36,7 +36,11 @@ export async function syncToGitHub(opts: SyncOptions): Promise<SyncResult> {
   }
 
   const github = await getGitHubClient();
-  if (!github) return { success: false, filesCreated: [], error: 'Not authenticated' };
+  if (!github) return { success: false, filesCreated: [], error: 'Not authenticated with GitHub' };
+
+  if (files.length === 0) {
+    return { success: false, filesCreated: [], error: 'No files to commit — AI may have returned empty solutions' };
+  }
 
   try {
     const commitFiles: CommitFile[] = files.map(f => ({
@@ -58,38 +62,8 @@ export async function syncToGitHub(opts: SyncOptions): Promise<SyncResult> {
       filesCreated: files.map(f => f.path),
     };
   } catch (err: any) {
-    // Fallback: try individual file updates
-    if (err?.message?.includes('409') || err?.message?.includes('conflict')) {
-      return fallbackIndividualUpdate(github, opts);
-    }
     return { success: false, filesCreated: [], error: String(err) };
   }
-}
-
-async function fallbackIndividualUpdate(
-  github: GitHubAPI,
-  opts: SyncOptions
-): Promise<SyncResult> {
-  const created: string[] = [];
-  const { files, commitMessage, repo, branch } = opts;
-
-  for (const file of files) {
-    try {
-      // Check if file exists (get SHA)
-      const existing = await github.getFileContent(
-        repo.owner, repo.name, file.path, branch
-      );
-      await github.createOrUpdateFile(
-        repo.owner, repo.name, file.path, file.content,
-        commitMessage, branch, existing?.sha
-      );
-      created.push(file.path);
-    } catch (err) {
-      console.error(`[GitHub] Failed to update ${file.path}:`, err);
-    }
-  }
-
-  return { success: created.length > 0, filesCreated: created };
 }
 
 export async function fetchAndCacheRepoTree(
@@ -99,21 +73,27 @@ export async function fetchAndCacheRepoTree(
   const github = await getGitHubClient();
   if (!github) return [];
 
-  const tree = await github.getRepositoryTree(repo.owner, repo.name, branch);
-  const dirs = tree.filter(t => t.type === 'tree').map(t => t.path);
-
-  await storage.setMany({
-    repoTree: dirs,
-    repoTreeFetchedAt: Date.now(),
-  });
-  return dirs;
+  try {
+    const tree = await github.getRepositoryTree(repo.owner, repo.name, branch);
+    const dirs = tree.filter(t => t.type === 'tree').map(t => t.path);
+    await storage.setMany({
+      repoTree: dirs,
+      repoTreeFetchedAt: Date.now(),
+    });
+    return dirs;
+  } catch {
+    return [];
+  }
 }
 
 export function buildCommitMessage(template: string, submission: Submission): string {
-  return template
-    .replace('{title}', submission.title)
-    .replace('{number}', String(submission.problemNumber))
-    .replace('{difficulty}', submission.difficulty)
-    .replace('{language}', submission.language)
-    .replace('{topics}', submission.topics.slice(0, 3).join(', '));
+  const safe = (v: string | number | undefined, fallback: string) =>
+    v !== undefined && v !== null && String(v).trim() ? String(v) : fallback;
+
+  return (template || 'feat: add {title} (#{number})')
+    .replace('{title}', safe(submission.title, 'Unknown Problem'))
+    .replace('{number}', safe(submission.problemNumber, '0'))
+    .replace('{difficulty}', safe(submission.difficulty, 'Unknown'))
+    .replace('{language}', safe(submission.language, 'unknown'))
+    .replace('{topics}', (submission.topics ?? []).slice(0, 3).join(', ') || 'general');
 }
