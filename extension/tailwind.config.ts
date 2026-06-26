@@ -1,15 +1,36 @@
 import type { Config } from 'tailwindcss';
 
 export default {
-  content: [
-    './src/**/*.{ts,tsx,html}',
-    './public/**/*.html',
-  ],
+  content: ['./src/**/*.{ts,tsx,html}', './public/**/*.html'],
   theme: {
     extend: {
       colors: {
+        // Cyberpunk neon palette
+        neon: {
+          cyan:   '#00f5ff',
+          pink:   '#ff006e',
+          purple: '#bf00ff',
+          green:  '#39ff14',
+          orange: '#ff9500',
+          blue:   '#0080ff',
+        },
+        // Dark backgrounds (void-like)
+        void: {
+          0: '#010108',
+          1: '#05050f',
+          2: '#080818',
+          3: '#0c0c22',
+          4: '#10102e',
+        },
+        // Glass surfaces
+        glass: {
+          DEFAULT: 'rgba(255,255,255,0.03)',
+          hover:   'rgba(255,255,255,0.06)',
+          active:  'rgba(0,245,255,0.05)',
+        },
+        // Keep brand for backwards compat
         brand: {
-          50: '#f0f4ff',
+          50:  '#f0f4ff',
           100: '#e0e9ff',
           200: '#c7d6ff',
           300: '#a3bbff',
@@ -21,45 +42,49 @@ export default {
           900: '#2a3288',
           950: '#1c2055',
         },
+        // Surfaces (legacy)
         surface: {
-          0: '#0d0f1a',
-          1: '#12152a',
-          2: '#181c36',
-          3: '#1f2442',
+          0: '#010108',
+          1: '#05050f',
+          2: '#080818',
+          3: '#0c0c22',
         },
         accent: {
-          green: '#22c55e',
-          yellow: '#f59e0b',
-          red: '#ef4444',
-          blue: '#3b82f6',
-          purple: '#a855f7',
+          green:  '#39ff14',
+          yellow: '#ff9500',
+          red:    '#ff006e',
+          blue:   '#00f5ff',
+          purple: '#bf00ff',
         },
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+        sans:    ['Inter', 'ui-sans-serif', 'system-ui'],
+        mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
+        display: ['Orbitron', 'ui-sans-serif'],
       },
       animation: {
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'slide-in': 'slideIn 0.2s ease-out',
-        'fade-in': 'fadeIn 0.3s ease-out',
-        'spin-slow': 'spin 3s linear infinite',
+        'slide-up':    'slide-up 0.25s ease-out',
+        'fade-in':     'fade-in 0.3s ease-out',
+        'pool-float':  'pool-float 6s ease-in-out infinite',
+        'neon-pulse':  'neon-pulse 2s ease-in-out infinite',
+        'glow-pulse':  'glow-pulse-cyan 3s ease-in-out infinite',
+        'spin-slow':   'spin 4s linear infinite',
       },
       keyframes: {
-        slideIn: {
-          '0%': { transform: 'translateY(-8px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        },
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
+        'slide-up':  { from: { transform: 'translateY(8px)', opacity: '0' }, to: { transform: 'translateY(0)', opacity: '1' } },
+        'fade-in':   { from: { opacity: '0' }, to: { opacity: '1' } },
+        'pool-float':{ '0%,100%': { transform: 'translateY(0) scale(1)', opacity: '0.8' }, '33%': { transform: 'translateY(-4px) scale(1.05)', opacity: '1' }, '66%': { transform: 'translateY(3px) scale(0.97)', opacity: '0.9' } },
+        'neon-pulse':{ '0%,100%': { opacity: '1' }, '50%': { opacity: '0.6' } },
+        'glow-pulse-cyan': { '0%,100%': { boxShadow: '0 0 8px rgba(0,245,255,0.3)' }, '50%': { boxShadow: '0 0 20px rgba(0,245,255,0.6), 0 0 40px rgba(0,245,255,0.2)' } },
       },
       boxShadow: {
-        'glow-brand': '0 0 20px rgba(79, 110, 247, 0.3)',
-        'glow-green': '0 0 20px rgba(34, 197, 94, 0.3)',
-        'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.05)',
+        'neon-cyan':   '0 0 16px rgba(0,245,255,0.5), 0 0 40px rgba(0,245,255,0.2)',
+        'neon-pink':   '0 0 16px rgba(255,0,110,0.5), 0 0 40px rgba(255,0,110,0.2)',
+        'neon-purple': '0 0 16px rgba(191,0,255,0.5), 0 0 40px rgba(191,0,255,0.2)',
+        'neon-green':  '0 0 16px rgba(57,255,20,0.5),  0 0 40px rgba(57,255,20,0.2)',
+        'glass':       'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.4)',
       },
+      backdropBlur: { glass: '20px' },
     },
   },
   plugins: [],

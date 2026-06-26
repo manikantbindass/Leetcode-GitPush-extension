@@ -1,16 +1,98 @@
 import { useState } from 'react';
-import { Save, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Save, AlertTriangle, ExternalLink, GitBranch, Zap, Globe, Terminal, Cpu } from 'lucide-react';
 import { usePopupStore } from '../store';
 import { RepoSelector } from '@/components/RepoSelector';
 import { ProviderCard } from '@/components/ProviderCard';
 import { LanguageSelector } from '@/components/LanguageSelector';
-import { Toggle } from '@/components/ui/Toggle';
-import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
-import { Button } from '@/components/ui/Button';
 import type { AIProviderConfig, AIProviderType } from '@/types/ai';
 import type { Repository } from '@/types/github';
 import type { OutputLanguage } from '@/types/submission';
+
+function SectionHeader({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-2">
+      <span style={{ color: 'var(--neon-cyan)', filter: 'drop-shadow(0 0 4px var(--neon-cyan))' }}>{icon}</span>
+      <span className="text-[9px] font-mono font-bold uppercase tracking-[0.2em]" style={{ color: 'rgba(0,245,255,0.5)' }}>
+        {label}
+      </span>
+      <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg,rgba(0,245,255,0.2),transparent)' }} />
+    </div>
+  );
+}
+
+function CyberLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-[9px] font-mono uppercase tracking-wider mb-1" style={{ color: 'rgba(0,245,255,0.35)' }}>{children}</p>;
+}
+
+function CyberInput({ label, value, onChange, placeholder, hint, type = 'text' }: {
+  label: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string; hint?: string; type?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <CyberLabel>{label}</CyberLabel>
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full rounded-xl px-3 py-2 text-xs font-mono outline-none transition-all input-cyber"
+      />
+      {hint && <p className="text-[9px] font-mono" style={{ color: 'rgba(255,255,255,0.2)' }}>{hint}</p>}
+    </div>
+  );
+}
+
+function CyberSelect({ label, value, onChange, options }: {
+  label: string; value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="space-y-1">
+      <CyberLabel>{label}</CyberLabel>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded-xl px-3 py-2 text-xs font-mono outline-none transition-all input-cyber appearance-none cursor-pointer"
+      >
+        {options.map(o => <option key={o.value} value={o.value} style={{ background: '#05050f' }}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function CyberToggle({ label, description, checked, onChange }: {
+  label: string; description?: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2 px-3 glass rounded-xl transition-all"
+         style={{ borderColor: checked ? 'rgba(0,245,255,0.2)' : 'rgba(255,255,255,0.05)' }}>
+      <div>
+        <p className="text-[11px] font-semibold text-white">{label}</p>
+        {description && <p className="text-[9px] font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>{description}</p>}
+      </div>
+      <button
+        onClick={() => onChange(!checked)}
+        className="relative w-9 h-5 rounded-full transition-all shrink-0 ml-3"
+        style={{
+          background: checked ? 'rgba(0,245,255,0.3)' : 'rgba(255,255,255,0.08)',
+          border: `1px solid ${checked ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.12)'}`,
+          boxShadow: checked ? '0 0 10px rgba(0,245,255,0.4)' : 'none',
+        }}
+      >
+        <span
+          className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+          style={{
+            left: checked ? 'calc(100% - 18px)' : '2px',
+            background: checked ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.3)',
+            boxShadow: checked ? '0 0 6px var(--neon-cyan)' : 'none',
+          }}
+        />
+      </button>
+    </div>
+  );
+}
 
 export function Settings() {
   const store = usePopupStore();
@@ -38,66 +120,51 @@ export function Settings() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleRepoChange = (repo: Repository) => {
-    store.saveSettings({ selectedRepo: repo, selectedBranch: repo.default_branch });
-  };
-
-  const handleBranchChange = (branch: string) => {
-    store.saveSettings({ selectedBranch: branch });
-  };
-
   const handleProviderUpdate = (updated: AIProviderConfig) => {
-    const providers = store.providers.map(p =>
-      p.type === updated.type ? updated : p
-    );
-    store.saveSettings({ providers });
+    store.saveSettings({ providers: store.providers.map(p => p.type === updated.type ? updated : p) });
   };
-
-  const handleSetActive = (type: AIProviderType) => {
-    store.saveSettings({ activeProvider: type });
-  };
-
-  const handleLanguageChange = (langs: OutputLanguage[]) => {
-    store.saveSettings({ targetLanguages: langs });
-  };
+  const handleSetActive = (type: AIProviderType) => store.saveSettings({ activeProvider: type });
+  const handleLanguageChange = (langs: OutputLanguage[]) => store.saveSettings({ targetLanguages: langs });
 
   return (
     <div className="overflow-y-auto h-full">
-      <div className="p-3 space-y-4">
+      <div className="p-3 space-y-5">
 
-        {/* ── Repository ─────────────────────────────────────── */}
-        <section className="space-y-2">
-          <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Repository</h3>
+        {/* ── Repository ──────────────────────────────────────────── */}
+        <section className="space-y-2.5">
+          <SectionHeader icon={<GitBranch size={11} />} label="Repository" />
           <RepoSelector
             selectedRepo={store.selectedRepo}
             selectedBranch={store.selectedBranch}
-            onRepoChange={handleRepoChange}
-            onBranchChange={handleBranchChange}
+            onRepoChange={(repo: Repository) => store.saveSettings({ selectedRepo: repo, selectedBranch: repo.default_branch })}
+            onBranchChange={(branch: string) => store.saveSettings({ selectedBranch: branch })}
           />
-          <Select
+          <CyberSelect
             label="File naming style"
             value={store.fileNamingStyle}
             onChange={v => store.saveSettings({ fileNamingStyle: v as any })}
             options={[
-              { value: 'number-slug', label: '0001-two-sum/0001-two-sum.java' },
-              { value: 'slug', label: 'two-sum/two-sum.java' },
+              { value: 'number-slug',  label: '0001-two-sum/0001-two-sum.java' },
+              { value: 'slug',         label: 'two-sum/two-sum.java' },
               { value: 'number-title', label: '0001-Two-Sum/0001-Two-Sum.java' },
             ]}
           />
-          <Input
+          <CyberInput
             label="Commit message template"
             value={store.commitTemplate}
             onChange={e => store.saveSettings({ commitTemplate: e.target.value })}
             placeholder="feat: add {title} (#{number})"
-            hint="Variables: {title} {number} {difficulty} {language} {topics}"
+            hint="// vars: {title} {number} {difficulty} {language} {topics}"
           />
         </section>
 
-        {/* ── AI Providers ───────────────────────────────────── */}
-        <section className="space-y-2">
-          <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">AI Provider</h3>
+        {/* ── AI Provider ─────────────────────────────────────────── */}
+        <section className="space-y-2.5">
+          <SectionHeader icon={<Cpu size={11} />} label="AI Provider" />
           {store.providers.length === 0 ? (
-            <p className="text-xs text-white/30 text-center py-4">No providers found. Reinstall extension.</p>
+            <p className="text-[10px] font-mono text-center py-4" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              // no providers — reinstall extension
+            </p>
           ) : (
             <div className="space-y-2">
               {store.providers.map(p => (
@@ -113,113 +180,110 @@ export function Settings() {
           )}
         </section>
 
-        {/* ── Output Languages ───────────────────────────────── */}
-        <section className="space-y-2">
-          <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Output Languages</h3>
+        {/* ── Output Languages ────────────────────────────────────── */}
+        <section className="space-y-2.5">
+          <SectionHeader icon={<Terminal size={11} />} label="Output Languages" />
           <LanguageSelector
             selected={store.targetLanguages as OutputLanguage[]}
             onChange={handleLanguageChange}
           />
         </section>
 
-        {/* ── AI Folder Instructions ────────────────────────────── */}
+        {/* ── AI Folder Instructions ───────────────────────────────── */}
         <section className="space-y-2">
-          <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">AI Folder Instructions</h3>
-          <p className="text-[10px] text-white/30 leading-relaxed">
-            Tell the AI exactly where to place solutions. It reads your repo's folder structure and follows these instructions.
+          <SectionHeader icon={<Zap size={11} />} label="AI Folder Instructions" />
+          <p className="text-[9px] font-mono leading-relaxed" style={{ color: 'rgba(255,255,255,0.25)' }}>
+            // DeepSeek reads your repo tree + these rules to decide folder placement
           </p>
-          <div className="relative">
-            <textarea
-              value={store.customInstructions ?? ''}
-              onChange={e => store.saveSettings({ customInstructions: e.target.value })}
-              placeholder={`Examples:\n- MySQL/SQL problems → put in 'MySQL' folder\n- Array problems → put in 'Arrays' folder\n- Tree problems → put in 'Trees' folder\n- Sliding window → put in 'SlidingWindow' folder`}
-              rows={6}
-              className="w-full bg-surface-1 border border-white/10 focus:border-brand-500/60 focus:shadow-[0_0_0_2px_rgba(79,110,247,0.15)] rounded-lg px-3 py-2.5 text-xs text-white placeholder-white/20 outline-none transition-all resize-none font-mono leading-relaxed"
-            />
-          </div>
-          <p className="text-[10px] text-brand-400/70">
-            💡 DeepSeek reads your repo folders + these instructions to decide where each solution goes.
+          <textarea
+            value={store.customInstructions ?? ''}
+            onChange={e => store.saveSettings({ customInstructions: e.target.value })}
+            placeholder={`- MySQL/SQL problems → 'MySQL' folder\n- Array problems → 'Arrays' folder\n- Tree problems → 'Trees' folder\n- Sliding window → 'SlidingWindow' folder\n- Stack problems → 'Stack' folder`}
+            rows={5}
+            className="w-full rounded-xl px-3 py-2.5 text-[11px] outline-none transition-all resize-none font-mono leading-relaxed input-cyber"
+          />
+          <p className="text-[9px] font-mono" style={{ color: 'rgba(0,245,255,0.4)' }}>
+            ⚡ AI picks the exact existing folder name from your repo
           </p>
         </section>
 
-        {/* ── Behavior ───────────────────────────────────────── */}
-        <section className="space-y-3">
-          <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Behavior</h3>
-          <Toggle
+        {/* ── Behavior ────────────────────────────────────────────── */}
+        <section className="space-y-2">
+          <SectionHeader icon={<Zap size={11} />} label="Behavior" />
+          <CyberToggle
             label="Auto-push"
-            description="Automatically sync accepted submissions"
+            description="// sync accepted submissions automatically"
             checked={store.autoPush}
             onChange={v => store.saveSettings({ autoPush: v })}
           />
-          <Toggle
+          <CyberToggle
             label="Dry-run mode"
-            description="Generate solutions without pushing to GitHub"
+            description="// generate solutions without pushing to GitHub"
             checked={store.dryRun}
             onChange={v => store.saveSettings({ dryRun: v })}
           />
         </section>
 
-        {/* ── OAuth Server ───────────────────────────────────── */}
-        <section className="space-y-2">
-          <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">OAuth Setup</h3>
-          <Input
+        {/* ── OAuth Setup ──────────────────────────────────────────── */}
+        <section className="space-y-2.5">
+          <SectionHeader icon={<Globe size={11} />} label="OAuth Setup" />
+          <CyberInput
             label="GitHub Client ID"
             value={store.githubClientId}
             onChange={e => store.saveSettings({ githubClientId: e.target.value })}
             placeholder="Your GitHub OAuth App Client ID"
           />
-          <Input
+          <CyberInput
             label="OAuth Server URL"
             value={store.oauthServerUrl}
             onChange={e => store.saveSettings({ oauthServerUrl: e.target.value })}
             placeholder="http://localhost:3001"
           />
-          <a
-            href="https://github.com/settings/developers"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1 text-xs text-brand-400 hover:text-brand-300 transition-colors"
-          >
-            Create GitHub OAuth App <ExternalLink size={10} />
+          <a href="https://github.com/settings/developers" target="_blank" rel="noreferrer"
+             className="flex items-center gap-1 transition-colors text-[10px] font-mono"
+             style={{ color: 'rgba(0,245,255,0.5)' }}>
+            ◆ Create GitHub OAuth App <ExternalLink size={9} />
           </a>
         </section>
 
-        {/* ── Danger Zone ───────────────────────────────────── */}
+        {/* ── Danger Zone ──────────────────────────────────────────── */}
         <section className="space-y-2">
-          <h3 className="text-[10px] font-semibold text-red-400/60 uppercase tracking-wider flex items-center gap-1">
-            <AlertTriangle size={10} /> Danger Zone
-          </h3>
-          <div className="border border-red-500/15 rounded-lg p-3 space-y-2">
-            <Button
-              variant="danger"
-              size="sm"
-              fullWidth
-              onClick={store.clearQueue}
-            >
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle size={10} style={{ color: 'var(--neon-pink)' }} />
+            <span className="text-[9px] font-mono font-bold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,0,110,0.5)' }}>
+              Danger Zone
+            </span>
+            <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg,rgba(255,0,110,0.2),transparent)' }} />
+          </div>
+          <div className="space-y-2 p-3 rounded-xl" style={{ border: '1px solid rgba(255,0,110,0.12)', background: 'rgba(255,0,110,0.03)' }}>
+            <button onClick={store.clearQueue}
+                    className="w-full rounded-xl py-2 text-[10px] font-mono font-semibold uppercase tracking-wider transition-all"
+                    style={{ border: '1px solid rgba(255,0,110,0.25)', color: 'rgba(255,0,110,0.7)', background: 'transparent' }}>
               Clear Sync Queue
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              fullWidth
-              onClick={store.triggerLogout}
-            >
+            </button>
+            <button onClick={store.triggerLogout}
+                    className="w-full rounded-xl py-2 text-[10px] font-mono font-semibold uppercase tracking-wider transition-all"
+                    style={{ border: '1px solid rgba(255,0,110,0.35)', color: 'var(--neon-pink)', background: 'rgba(255,0,110,0.08)', boxShadow: '0 0 10px rgba(255,0,110,0.1)' }}>
               Disconnect GitHub
-            </Button>
+            </button>
           </div>
         </section>
 
         {/* Save button */}
-        <Button
-          variant="primary"
-          size="md"
-          fullWidth
-          loading={saving}
+        <button
           onClick={handleSave}
-          leftIcon={<Save size={14} />}
+          disabled={saving}
+          className="w-full btn-cyber-solid rounded-xl py-3 flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          {saved ? '✓ Saved!' : 'Save Settings'}
-        </Button>
+          {saving
+            ? <><span className="animate-spin w-3 h-3 border border-black/30 border-t-black rounded-full" />SAVING…</>
+            : saved
+            ? <><span style={{ color: 'inherit' }}>✓</span> SAVED!</>
+            : <><Save size={12} />SAVE SETTINGS</>
+          }
+        </button>
+
+        <div className="h-2" />
       </div>
     </div>
   );
