@@ -25,6 +25,7 @@ interface PopupState {
   commitTemplate: string;
   oauthServerUrl: string;
   githubClientId: string;
+  customInstructions: string;
 
   // UI state
   isLoading: boolean;
@@ -60,6 +61,8 @@ export const usePopupStore = create<PopupState>((set, get) => ({
   commitTemplate: 'feat: add {title} (#{number})',
   oauthServerUrl: 'http://localhost:3001',
   githubClientId: '',
+  customInstructions: '',
+
 
   isLoading: false,
   activeTab: 'dashboard',
@@ -85,6 +88,7 @@ export const usePopupStore = create<PopupState>((set, get) => ({
       commitTemplate: data.commitTemplate ?? 'feat: add {title} (#{number})',
       oauthServerUrl: data.oauthServerUrl ?? 'http://localhost:3001',
       githubClientId: data.githubClientId ?? '',
+      customInstructions: data.customInstructions ?? '',
       isLoading: false,
     });
 
@@ -140,6 +144,7 @@ export const usePopupStore = create<PopupState>((set, get) => ({
     if (settings.commitTemplate !== undefined) update.commitTemplate = settings.commitTemplate ?? '';
     if (settings.oauthServerUrl !== undefined) update.oauthServerUrl = settings.oauthServerUrl ?? '';
     if (settings.githubClientId !== undefined) update.githubClientId = settings.githubClientId ?? '';
+    if (settings.customInstructions !== undefined) update.customInstructions = settings.customInstructions ?? '';
     set(update);
   },
 

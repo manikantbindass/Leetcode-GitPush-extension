@@ -5,7 +5,8 @@ import { logout } from './oauth';
 import { generateSolutions, testProvider } from './ai';
 import { syncToGitHub, fetchAndCacheRepoTree, buildCommitMessage, getGitHubClient } from './github';
 import { updateRepositoryReadme } from './readme';
-import { findTopicDirectory, buildFilePath } from '@/lib/github/tree';
+import { buildFilePath } from '@/lib/github/tree';
+import { determineFolderWithAI } from '@/lib/github/folder';
 import { buildSolutionFile } from '@/lib/templates/file';
 import {
   addToQueue,
@@ -165,15 +166,15 @@ async function processItem(item: QueueItem): Promise<void> {
   });
 
   try {
-    const [repo, branch, rawLangs, dryRun, style, topicMapping, commitTpl] =
+    const [repo, branch, rawLangs, dryRun, style, commitTpl, customInstructions] =
       await Promise.all([
         storage.get('selectedRepo'),
         storage.get('selectedBranch'),
         storage.get('targetLanguages'),
         storage.get('dryRun'),
         storage.get('fileNamingStyle'),
-        storage.get('topicMapping'),
         storage.get('commitTemplate'),
+        storage.get('customInstructions'),
       ]);
 
     if (!repo || !branch) {
@@ -211,26 +212,28 @@ async function processItem(item: QueueItem): Promise<void> {
       throw new Error('AI returned no solutions. Check your API key and model in Settings.');
     }
 
-    // 2. Get repo tree for folder placement
-    let treeItems: Array<{ path: string; type: 'tree' | 'blob'; sha: string; url: string }> = [];
+    // 2. Get repo tree — always refresh so we see current folder structure
+    let existingFolders: string[] = [];
     try {
-      const CACHE_TTL = 30 * 60 * 1000; // 30 min
+      const CACHE_TTL = 15 * 60 * 1000; // 15 min
       const cachedAt = await storage.get('repoTreeFetchedAt');
       if (!cachedAt || Date.now() - cachedAt > CACHE_TTL) {
         await fetchAndCacheRepoTree(repo, branch);
       }
-      // Use full tree items (type=tree entries) for folder matching
-      const storedItems = await storage.get('repoTreeItems');
-      treeItems = storedItems ?? [];
+      const storedItems = (await storage.get('repoTreeItems')) ?? [];
+      // Extract top-level folder names only
+      existingFolders = storedItems
+        .filter(t => t.type === 'tree')
+        .map(t => t.path);
     } catch {
-      treeItems = [];
+      existingFolders = [];
     }
 
-    // Find best matching folder from repo structure
-    const topicDir = findTopicDirectory(
-      treeItems,
-      submission.topics ?? [],
-      topicMapping ?? {}
+    // 3. AI determines the correct folder from your repo structure
+    const topicDir = await determineFolderWithAI(
+      submission,
+      existingFolders,
+      customInstructions ?? undefined
     );
 
     // 3. Build file list

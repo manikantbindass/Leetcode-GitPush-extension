@@ -31,6 +31,7 @@ export function Settings() {
       dryRun: store.dryRun,
       oauthServerUrl: store.oauthServerUrl,
       githubClientId: store.githubClientId,
+      customInstructions: store.customInstructions,
     });
     setSaving(false);
     setSaved(true);
@@ -119,6 +120,26 @@ export function Settings() {
             selected={store.targetLanguages as OutputLanguage[]}
             onChange={handleLanguageChange}
           />
+        </section>
+
+        {/* ── AI Folder Instructions ────────────────────────────── */}
+        <section className="space-y-2">
+          <h3 className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">AI Folder Instructions</h3>
+          <p className="text-[10px] text-white/30 leading-relaxed">
+            Tell the AI exactly where to place solutions. It reads your repo's folder structure and follows these instructions.
+          </p>
+          <div className="relative">
+            <textarea
+              value={store.customInstructions ?? ''}
+              onChange={e => store.saveSettings({ customInstructions: e.target.value })}
+              placeholder={`Examples:\n- MySQL/SQL problems → put in 'MySQL' folder\n- Array problems → put in 'Arrays' folder\n- Tree problems → put in 'Trees' folder\n- Sliding window → put in 'SlidingWindow' folder`}
+              rows={6}
+              className="w-full bg-surface-1 border border-white/10 focus:border-brand-500/60 focus:shadow-[0_0_0_2px_rgba(79,110,247,0.15)] rounded-lg px-3 py-2.5 text-xs text-white placeholder-white/20 outline-none transition-all resize-none font-mono leading-relaxed"
+            />
+          </div>
+          <p className="text-[10px] text-brand-400/70">
+            💡 DeepSeek reads your repo folders + these instructions to decide where each solution goes.
+          </p>
         </section>
 
         {/* ── Behavior ───────────────────────────────────────── */}

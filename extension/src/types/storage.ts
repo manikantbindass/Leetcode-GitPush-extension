@@ -34,6 +34,7 @@ export interface ExtensionStorage {
   autoPush?: boolean;
   dryRun?: boolean;
   topicMapping?: Record<string, string>;
+  customInstructions?: string;  // user instructions for AI folder placement
 
   // OAuth server config
   oauthServerUrl?: string;
