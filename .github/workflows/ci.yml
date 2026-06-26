@@ -31,10 +31,10 @@ jobs:
             extension/package-lock.json
             server/package-lock.json
 
-      # ---- Extension ----
+      # ── Extension ─────────────────────────────────────────
       - name: Install extension dependencies
         working-directory: extension
-        run: npm ci
+        run: npm install
 
       - name: Type-check extension
         working-directory: extension
@@ -44,14 +44,18 @@ jobs:
         working-directory: extension
         run: npm run lint
 
-      - name: Run extension tests
+      - name: Test extension
         working-directory: extension
         run: npm test
 
-      # ---- Server ----
+      - name: Build extension
+        working-directory: extension
+        run: npm run build
+
+      # ── Server ────────────────────────────────────────────
       - name: Install server dependencies
         working-directory: server
-        run: npm ci
+        run: npm install
 
       - name: Type-check server
         working-directory: server

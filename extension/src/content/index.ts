@@ -121,7 +121,7 @@ function parseConstraints(html: string): string[] {
   if (!constraintSection) return [];
   return stripHTML(constraintSection[1])
     .split('\n')
-    .map(s => s.replace(/^[•\-\*]\s*/, '').trim())
+    .map(s => s.replace(/^[•\-*]\s*/, '').trim())
     .filter(Boolean);
 }
 

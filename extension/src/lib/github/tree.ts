@@ -23,7 +23,7 @@ export function findTopicDirectory(
 
   // 2. Fuzzy match: normalize topic and directory names, find overlap
   const normalize = (s: string) =>
-    s.toLowerCase().replace(/[\s_\-]/g, '').replace(/&/g, 'and');
+    s.toLowerCase().replace(/[\s_-]/g, '').replace(/&/g, 'and');
 
   for (const topic of topics) {
     const normTopic = normalize(topic);
