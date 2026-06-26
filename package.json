@@ -1,0 +1,17 @@
+{
+  "name": "leetcode-ai-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LeetCode AI Sync — Chrome Extension monorepo",
+  "scripts": {
+    "dev": "npm run dev --workspace=extension",
+    "build": "npm run build --workspace=extension",
+    "install:all": "npm install --workspace=extension --workspace=server",
+    "type-check": "npm run type-check --workspace=extension",
+    "lint": "npm run lint --workspace=extension"
+  },
+  "workspaces": [
+    "extension",
+    "server"
+  ]
+}

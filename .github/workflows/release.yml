@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build & Release Chrome Extension
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install extension dependencies
+        working-directory: extension
+        run: npm ci
+
+      - name: Type-check extension
+        working-directory: extension
+        run: npm run type-check
+
+      - name: Build extension
+        working-directory: extension
+        run: npm run build
+
+      - name: Extract tag name
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Package extension as ZIP
+        working-directory: extension/dist
+        run: zip -r ../../leetcode-ai-sync-${{ steps.tag.outputs.TAG }}.zip .
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          echo "NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "## LeetCode AI Sync ${{ steps.tag.outputs.TAG }}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### Installation" >> $GITHUB_OUTPUT
+          echo "1. Download leetcode-ai-sync-${{ steps.tag.outputs.TAG }}.zip" >> $GITHUB_OUTPUT
+          echo "2. Unzip the archive" >> $GITHUB_OUTPUT
+          echo "3. Open Chrome, go to chrome://extensions/, enable Developer mode" >> $GITHUB_OUTPUT
+          echo "4. Click Load unpacked and select the unzipped folder" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          release_name: LeetCode AI Sync ${{ steps.tag.outputs.TAG }}
+          body: ${{ steps.release_notes.outputs.NOTES }}
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.TAG, '-') }}
+
+      - name: Upload ZIP as release asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./leetcode-ai-sync-${{ steps.tag.outputs.TAG }}.zip
+          asset_name: leetcode-ai-sync-${{ steps.tag.outputs.TAG }}.zip
+          asset_content_type: application/zip
