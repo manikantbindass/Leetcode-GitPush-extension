@@ -1,12 +1,58 @@
 import type { Difficulty, Example, Language, Submission } from '@/types/submission';
 import { generateId } from '@/lib/utils';
 
+/**
+ * Check if the extension context is still valid before calling chrome APIs.
+ * Context becomes invalid when the extension is reloaded while this content
+ * script is still alive on the page. All chrome.runtime calls will throw
+ * "Extension context invalidated" in that state.
+ */
+function isContextValid(): boolean {
+  try {
+    // chrome.runtime.id is undefined when context is invalidated
+    return !!chrome.runtime?.id;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Safely send a message to the background service worker.
+ * Returns false (no-op) if context is invalidated instead of throwing.
+ */
+function safeSendToBackground(message: unknown): boolean {
+  if (!isContextValid()) {
+    console.warn('[LeetCode AI Sync] Extension context invalidated — reload the LeetCode tab to re-activate.');
+    return false;
+  }
+  try {
+    chrome.runtime.sendMessage(message);
+    return true;
+  } catch (err) {
+    const msg = String(err);
+    if (msg.includes('Extension context invalidated') || msg.includes('Cannot read properties of undefined')) {
+      console.warn('[LeetCode AI Sync] Context invalidated during sendMessage — tab needs refresh.');
+      showToast('⚡ Extension updated — please refresh this tab to re-activate sync', 'info');
+    } else {
+      throw err; // re-throw unexpected errors
+    }
+    return false;
+  }
+}
+
 // ─── Inject interceptor into page main world ─────────────────────────────
-injectScript();
+if (isContextValid()) {
+  injectScript();
+}
 
 function injectScript() {
+  if (!isContextValid()) return;
   const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('src/content/injected.js');
+  try {
+    script.src = chrome.runtime.getURL('src/content/injected.js');
+  } catch {
+    return; // context gone between check and getURL
+  }
   script.onload = () => script.remove();
   script.onerror = () => {
     console.error('[LeetCode AI Sync] Failed to inject interceptor script');
@@ -17,6 +63,12 @@ function injectScript() {
 // ─── Listen for messages from the injected script ────────────────────────
 window.addEventListener('message', async event => {
   if (event.source !== window) return;
+
+  // If context is gone, stop listening — user needs to refresh the tab
+  if (!isContextValid()) {
+    showToast('⚡ Extension updated — please refresh this tab to re-activate sync', 'info');
+    return;
+  }
 
   if (event.data?.type === 'LEETCODE_INJECTOR_READY') {
     console.log('[LeetCode AI Sync] Interceptor ready ✓');
@@ -77,15 +129,24 @@ async function processSubmission(raw: Record<string, any>) {
       console.warn('[LeetCode AI Sync] Code is empty — will retry from submission detail');
     }
 
-    chrome.runtime.sendMessage({
+    const sent = safeSendToBackground({
       type: 'SUBMISSION_DETECTED',
       payload: submission,
     });
 
-    showToast('✅ LeetCode AI Sync: syncing to GitHub…', 'success');
+    if (sent) {
+      showToast('✅ LeetCode AI Sync: syncing to GitHub…', 'success');
+    }
   } catch (err) {
+    const msg = String(err);
+    // Don't show scary red error for context-invalidated — it's expected after extension reload
+    if (msg.includes('Extension context invalidated') || msg.includes('Cannot read properties of undefined')) {
+      console.warn('[LeetCode AI Sync] Context invalidated — reload the LeetCode tab');
+      showToast('⚡ Extension updated — please refresh this tab to re-activate sync', 'info');
+      return;
+    }
     console.error('[LeetCode AI Sync] Error processing submission:', err);
-    showToast(`❌ LeetCode AI Sync: ${String(err)}`, 'error');
+    showToast(`❌ LeetCode AI Sync: ${msg}`, 'error');
   }
 }
 
