@@ -6,16 +6,16 @@ import { usePopupStore } from '../store';
 import { sendMessage } from '@/lib/messaging';
 
 const FILTER_LABELS: Record<string, string> = {
-  all: 'ALL', pending: 'PENDING', processing: 'LIVE', done: 'DONE', failed: 'FAILED',
+  all: 'ALL', pending: 'PENDING', processing: 'LIVE', done: 'DONE', failed: 'FAILED', skipped: 'SKIPPED',
 };
 const FILTER_COLOR: Record<string, string> = {
   all: 'var(--neon-cyan)', pending: 'rgba(255,255,255,0.4)', processing: 'var(--neon-purple)',
-  done: 'var(--neon-green)', failed: 'var(--neon-pink)',
+  done: 'var(--neon-green)', failed: 'var(--neon-pink)', skipped: 'var(--neon-orange)',
 };
 
 export function Queue() {
-  const { queue, retryQueue, clearQueue } = usePopupStore();
-  const [filter, setFilter] = useState<'all'|'pending'|'processing'|'done'|'failed'>('all');
+  const { queue, clearQueue } = usePopupStore();
+  const [filter, setFilter] = useState<'all'|'pending'|'processing'|'done'|'failed'|'skipped'>('all');
   const [retrying, setRetrying] = useState(false);
 
   const filtered = filter === 'all' ? queue : queue.filter(i => i.status === filter);
@@ -25,6 +25,7 @@ export function Queue() {
     processing: queue.filter(i => i.status === 'processing').length,
     done: queue.filter(i => i.status === 'done').length,
     failed: queue.filter(i => i.status === 'failed').length,
+    skipped: queue.filter(i => i.status === 'skipped').length,
   };
 
   const handleRetryAll = async () => {
@@ -129,15 +130,19 @@ function QueueCard({ item }: { item: QueueItem }) {
   const diff = (submission?.difficulty ?? 'Medium') as 'Easy'|'Medium'|'Hard';
 
   const statusConfig = {
-    pending:    { color:'rgba(255,255,255,0.4)', label:'PENDING',    glow:'none' },
-    processing: { color:'var(--neon-purple)',    label:'PROCESSING', glow:'0 0 8px rgba(191,0,255,0.5)' },
-    done:       { color:'var(--neon-green)',     label:'PUSHED ✓',  glow:'0 0 8px rgba(57,255,20,0.5)' },
-    failed:     { color:'var(--neon-pink)',      label:'FAILED ✗',  glow:'0 0 8px rgba(255,0,110,0.5)' },
+    pending:    { color:'rgba(255,255,255,0.4)', label:'PENDING',           glow:'none' },
+    processing: { color:'var(--neon-purple)',    label:'PROCESSING',        glow:'0 0 8px rgba(191,0,255,0.5)' },
+    done:       { color:'var(--neon-green)',     label:'PUSHED ✓',          glow:'0 0 8px rgba(57,255,20,0.5)' },
+    failed:     { color:'var(--neon-pink)',      label:'FAILED ✗',          glow:'0 0 8px rgba(255,0,110,0.5)' },
+    skipped:    { color:'var(--neon-orange)',    label:'ALREADY EXISTS ◆',  glow:'0 0 8px rgba(255,149,0,0.5)' },
   }[item.status] ?? { color:'rgba(255,255,255,0.4)', label:'UNKNOWN', glow:'none' };
 
   const borderColor = {
-    failed: 'rgba(255,0,110,0.2)', done: 'rgba(57,255,20,0.15)',
-    processing: 'rgba(191,0,255,0.2)', pending: 'rgba(255,255,255,0.06)',
+    failed:  'rgba(255,0,110,0.2)',
+    done:    'rgba(57,255,20,0.15)',
+    processing: 'rgba(191,0,255,0.2)',
+    skipped: 'rgba(255,149,0,0.18)',
+    pending: 'rgba(255,255,255,0.06)',
   }[item.status];
 
   return (
@@ -149,6 +154,9 @@ function QueueCard({ item }: { item: QueueItem }) {
       )}
       {item.status === 'done' && (
         <div className="pool-orb pool-orb-green" style={{ width:60, height:60, top:-20, right:-10 }} />
+      )}
+      {item.status === 'skipped' && (
+        <div className="pool-orb pool-orb-orange" style={{ width:60, height:60, top:-20, right:-10 }} />
       )}
 
       {/* Top row */}
@@ -208,6 +216,19 @@ function QueueCard({ item }: { item: QueueItem }) {
           </div>
         </div>
       ) : null}
+
+      {/* Skipped — already in GitHub */}
+      {item.status === 'skipped' && (
+        <div className="space-y-1 relative z-10 px-2 py-1.5 rounded-lg"
+             style={{ background:'rgba(255,149,0,0.06)', border:'1px solid rgba(255,149,0,0.2)' }}>
+          <p className="text-[9px] font-mono" style={{ color:'var(--neon-orange)' }}>
+            {item.skipReason ?? '✓ Already exists in your GitHub repo — no commit needed'}
+          </p>
+          {item.filesCreated?.slice(0, 3).map(f => (
+            <p key={f} className="text-[8px] font-mono text-white/20 truncate pl-1">▸ {f}</p>
+          ))}
+        </div>
+      )}
 
       {/* Failed — error */}
       {item.status === 'failed' && item.lastError && (

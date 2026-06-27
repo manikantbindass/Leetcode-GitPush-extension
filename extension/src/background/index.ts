@@ -3,7 +3,7 @@ import * as storage from '@/lib/storage';
 import { generateId } from '@/lib/utils';
 import { logout } from './oauth';
 import { generateSolutions, testProvider } from './ai';
-import { syncToGitHub, fetchAndCacheRepoTree, buildCommitMessage, getGitHubClient } from './github';
+import { syncToGitHub, fetchAndCacheRepoTree, buildCommitMessage, getGitHubClient, checkFilesExistInRepo } from './github';
 import { updateRepositoryReadme } from './readme';
 import { buildFilePath } from '@/lib/github/tree';
 import { determineFolderWithAI } from '@/lib/github/folder';
@@ -59,10 +59,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const item = await enqueueSubmission(submission);
         const autoPush = await storage.get('autoPush');
         broadcastQueueUpdate();
-        if (autoPush !== false) {
+        if (item && autoPush !== false) {
           processItem(item).then(broadcastQueueUpdate).catch(console.error);
         }
-        sendResponse({ ok: true });
+        sendResponse({ ok: item ? { ok: true } : { ok: false, reason: 'duplicate' } });
         break;
       }
 
@@ -141,7 +141,35 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 // ─── Pipeline helpers ────────────────────────────────────────────────────────
-async function enqueueSubmission(submission: Submission): Promise<QueueItem> {
+async function enqueueSubmission(submission: Submission): Promise<QueueItem | null> {
+  // ── Dedup check 1: already in queue (done or skipped) for this problem ──────
+  const allItems = await getAllItems();
+  const alreadyProcessed = allItems.find(
+    q =>
+      q.submission?.titleSlug === submission.titleSlug &&
+      (q.status === 'done' || q.status === 'skipped')
+  );
+  if (alreadyProcessed) {
+    console.log(
+      `[LeetCode AI Sync] Skipping duplicate enqueue for "${submission.title}" — already ${alreadyProcessed.status}`
+    );
+    return null; // caller must handle null
+  }
+
+  // ── Dedup check 2: already queued (pending/processing) within last 5 min ────
+  const recentPending = allItems.find(
+    q =>
+      q.submission?.titleSlug === submission.titleSlug &&
+      (q.status === 'pending' || q.status === 'processing') &&
+      Date.now() - q.createdAt < 5 * 60 * 1000
+  );
+  if (recentPending) {
+    console.log(
+      `[LeetCode AI Sync] Skipping duplicate enqueue for "${submission.title}" — already pending`
+    );
+    return null;
+  }
+
   const item: QueueItem = {
     id: generateId(),
     submission,
@@ -160,6 +188,7 @@ async function processQueue(): Promise<void> {
     await processItem(item);
   }
 }
+
 
 async function processItem(item: QueueItem): Promise<void> {
   await updateQueueItem(item.id, {
@@ -275,7 +304,49 @@ async function processItem(item: QueueItem): Promise<void> {
       );
     }
 
-    // 4. Push to GitHub
+    // 4. Check if ALL files already exist in GitHub → skip instead of re-pushing
+    if (!(dryRun ?? false)) {
+      const existingPaths = await checkFilesExistInRepo(
+        repo,
+        branch,
+        filesList.map(f => f.path)
+      );
+      if (existingPaths.length === filesList.length) {
+        // Every target file is already on GitHub — nothing to commit
+        const skipMsg = `Already in GitHub: ${existingPaths[0]} (+${existingPaths.length - 1} more)`;
+        console.log('[LeetCode AI Sync] All files already exist →', skipMsg);
+
+        await updateQueueItem(item.id, {
+          status: 'skipped',
+          skipReason: `✓ Already pushed — all ${existingPaths.length} file(s) exist in ${repo.name}`,
+          filesCreated: existingPaths,
+          updatedAt: Date.now(),
+        });
+
+        safeSendMessage({
+          type: 'SYNC_SKIPPED',
+          payload: { submissionId: item.id, reason: skipMsg },
+        });
+
+        chrome.notifications.create(`skip-${item.id}`, {
+          type: 'basic',
+          iconUrl: 'icons/icon48.png',
+          title: 'LeetCode AI Sync ⚡',
+          message: `"${submission.title}" already in your repo — skipped.`,
+        });
+        return; // done — no commit
+      } else if (existingPaths.length > 0) {
+        // Some files exist, some don't — only push the missing ones
+        const missingFiles = filesList.filter(f => !existingPaths.includes(f.path));
+        console.log(
+          `[LeetCode AI Sync] Partial — ${existingPaths.length} exist, pushing ${missingFiles.length} new files`
+        );
+        filesList.length = 0;
+        filesList.push(...missingFiles);
+      }
+    }
+
+    // 5. Push to GitHub
     const commitMsg = buildCommitMessage(
       commitTpl ?? 'feat: add {title} (#{number})',
       submission
@@ -534,7 +605,8 @@ async function pollLeetCodeForNewSubmissions(): Promise<void> {
       );
       if (alreadyQueued) continue;
 
-      await enqueueSubmission(submission);
+      const queued = await enqueueSubmission(submission);
+      if (!queued) continue; // deduped — already processed
       // Persist synced ID so we don't re-queue after restart
       const freshIds: string[] = (await storage.get('syncedSubmissionIds') as string[]) ?? [];
       await storage.setMany({ syncedSubmissionIds: [...new Set([...freshIds, sub.id])] });

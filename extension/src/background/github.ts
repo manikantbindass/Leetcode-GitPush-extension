@@ -98,3 +98,27 @@ export function buildCommitMessage(template: string, submission: Submission): st
     .replace('{language}', safe(submission.language, 'unknown'))
     .replace('{topics}', (submission.topics ?? []).slice(0, 3).join(', ') || 'general');
 }
+
+/**
+ * Returns which of the given file paths already exist in the GitHub repo.
+ * Uses getFileContent (returns null on 404) — read-only, no writes.
+ */
+export async function checkFilesExistInRepo(
+  repo: Repository,
+  branch: string,
+  filePaths: string[]
+): Promise<string[]> {
+  const github = await getGitHubClient();
+  if (!github) return [];
+
+  const checks = await Promise.all(
+    filePaths.map(async path => {
+      const result = await github.getFileContent(repo.owner, repo.name, path, branch);
+      return result !== null ? path : null;
+    })
+  );
+
+  return checks.filter((p): p is string => p !== null);
+}
+
+

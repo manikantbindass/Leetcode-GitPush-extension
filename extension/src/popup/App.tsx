@@ -19,7 +19,7 @@ export default function App() {
   useEffect(() => {
     loadFromStorage();
     const unsub = onMessage((msg) => {
-      if (['QUEUE_UPDATE','SYNC_COMPLETE','SYNC_ERROR','AUTH_COMPLETE'].includes(msg.type)) {
+      if (['QUEUE_UPDATE','SYNC_COMPLETE','SYNC_ERROR','SYNC_SKIPPED','AUTH_COMPLETE'].includes(msg.type)) {
         loadFromStorage();
       }
     });

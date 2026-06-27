@@ -66,9 +66,10 @@ export interface Submission {
 export interface QueueItem {
   id: string;
   submission: Submission;
-  status: 'pending' | 'processing' | 'done' | 'failed';
+  status: 'pending' | 'processing' | 'done' | 'failed' | 'skipped';
   attempts: number;
   lastError?: string;
+  skipReason?: string;          // set when status === 'skipped'
   createdAt: number;
   updatedAt: number;
   filesCreated?: string[];
